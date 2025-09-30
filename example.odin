@@ -21,9 +21,9 @@ main :: proc() {
 		// Draw stuff to a hidden framebuffer
 		ren.clear(gray)
 		ren.draw_rect(0, 0, 20, 20, red)
-		ren.draw_rect(size[0] - 20, 0, 20, 20, red)
-		ren.draw_rect(0, size[1] - 20, 20, 20, red)
-		ren.draw_rect(size[0] - 20, size[1] - 20, 20, 20, red)
+		ren.draw_rect(size.x - 20, 0, 20, 20, red)
+		ren.draw_rect(0, size.y - 20, 20, 20, red)
+		ren.draw_rect(size.x - 20, size.y - 20, 20, 20, red)
 
 		ren.present()
 	}
