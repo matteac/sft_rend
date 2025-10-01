@@ -106,5 +106,5 @@ odin build .
 
 # Todo
 - More shapes
-- Alpha blending
+<!-- - Alpha blending -->
 - Text drawing

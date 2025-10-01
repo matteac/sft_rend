@@ -92,7 +92,7 @@ link_shader_program :: proc(program: u32, shaders: []u32) -> (bool, string) {
 }
 
 resize_framebuffer :: proc(width, height: i32) {
-	if width == 0 || height == 0 {
+	if width <= 0 || height <= 0 {
 		return
 	}
 
@@ -156,11 +156,12 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (glfw.WindowHandle, bool
 
 	state._window_handle = glfw.CreateWindow(
 		cast(i32)state.width,
-		cast(i32)state.width,
+		cast(i32)state.height,
 		title,
 		nil,
 		nil,
 	)
+
 	if state._window_handle == nil {
 		return nil, false, "Error creating GLFW window"
 	}
@@ -231,9 +232,54 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (glfw.WindowHandle, bool
 	return state._window_handle, true, ""
 }
 
+/* 
 _draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
 		state.fb[y * cast(i32)state.width + x] = transmute(u32)color
+	}
+}
+*/
+_draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
+	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
+		index := y * cast(i32)state.width + x
+
+		if color.a == 0 {
+			return
+		}
+
+		packed_b := state.fb[index]
+		B := transmute(Color)packed_b
+
+		if color.a == 255 {
+			state.fb[index] = transmute(u32)color
+			return
+		}
+
+		a_raw := cast(u32)color.a
+		b_raw := cast(u32)B.a
+
+		a_inv := 255 - a_raw
+
+		t2_alpha := (b_raw * a_inv + 127) / 255
+
+		a_out := a_raw + t2_alpha
+
+		out: Color
+		out.a = cast(u8)a_out
+
+		final_divisor := a_out * 255
+
+		r_num := cast(u32)color.r * a_raw * 255 + cast(u32)B.r * b_raw * a_inv
+		out.r = cast(u8)((r_num + final_divisor / 2) / final_divisor)
+
+		g_num := cast(u32)color.g * a_raw * 255 + cast(u32)B.g * b_raw * a_inv
+		out.g = cast(u8)((g_num + final_divisor / 2) / final_divisor)
+
+		b_num := cast(u32)color.b * a_raw * 255 + cast(u32)B.b * b_raw * a_inv
+		out.b = cast(u8)((b_num + final_divisor / 2) / final_divisor)
+
+
+		state.fb[index] = transmute(u32)out
 	}
 }
 
@@ -369,3 +415,4 @@ get_delta_time :: proc() -> f64 {
 is_running :: proc() -> bool {
 	return state._running && !glfw.WindowShouldClose(state._window_handle)
 }
+

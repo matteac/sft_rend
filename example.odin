@@ -15,7 +15,7 @@ main :: proc() {
 
 	// 0xAABBGGRR
 	gray: ren.Color = {24, 24, 24, 255}
-	red: ren.Color = {255, 0, 0, 255}
+	red: ren.Color = {255, 0, 0, 128}
 
 	size := ren.get_size()
 	circle: ren.Circlef = {size.x / 2, size.y / 2, 16}
@@ -54,8 +54,9 @@ main :: proc() {
 		ren.draw_rect(0, size.y - 48, 48, 48, red)
 		ren.draw_rect(size.x - 48, size.y - 48, 48, 48, red, false)
 
-		ren.draw_circle(circle.x, circle.y, circle.radius, {0, 0, 128, 255})
+		ren.draw_circle(circle.x, circle.y, circle.radius, {0, 0, 255, 128})
 
 		ren.present()
 	}
 }
+
