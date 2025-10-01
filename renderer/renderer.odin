@@ -39,11 +39,9 @@ frag_shader_src :: `
 `
 
 
-Vec2i :: [2]i32
-
 Renderer :: struct {
-	width:          i32,
-	height:         i32,
+	width:          f64,
+	height:         f64,
 	fb:             []u32, // RGBA TODO: implement alpha blending (https://en.wikipedia.org/wiki/Alpha_compositing)
 	// _"private"
 	_running:       bool,
@@ -53,6 +51,10 @@ Renderer :: struct {
 	_quad_vbo:      u32,
 	_quad_vertices: []f32,
 	_texture_id:    u32,
+
+	//
+	_ltime:         f64,
+	_delta:         f64,
 }
 
 
@@ -94,8 +96,8 @@ resize_framebuffer :: proc(width, height: i32) {
 		return
 	}
 
-	state.width = width
-	state.height = height
+	state.width = cast(f64)width
+	state.height = cast(f64)height
 
 	delete(state.fb)
 	state.fb = make([]u32, width * height)
@@ -112,9 +114,9 @@ _fbsz_cb :: proc "c" (handle: glfw.WindowHandle, width, height: i32) {
 }
 
 
-init :: proc(w, h: i32, title: cstring, vsync: bool) -> (bool, string) {
-	state.width = w
-	state.height = h
+init :: proc(w, h: i32, title: cstring, vsync: bool) -> (glfw.WindowHandle, bool, string) {
+	state.width = cast(f64)w
+	state.height = cast(f64)h
 	state._running = true
 	state._quad_vertices = {
 		// texture coords (V flipped)
@@ -149,12 +151,18 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (bool, string) {
 	glfw.WindowHint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
 
 	if !glfw.Init() {
-		return false, "Error initializing GLFW"
+		return nil, false, "Error initializing GLFW"
 	}
 
-	state._window_handle = glfw.CreateWindow(state.width, state.width, title, nil, nil)
+	state._window_handle = glfw.CreateWindow(
+		cast(i32)state.width,
+		cast(i32)state.width,
+		title,
+		nil,
+		nil,
+	)
 	if state._window_handle == nil {
-		return false, "Error creating GLFW window"
+		return nil, false, "Error creating GLFW window"
 	}
 
 	glfw.MakeContextCurrent(state._window_handle)
@@ -169,12 +177,16 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (bool, string) {
 	vert_shader := gl.CreateShader(gl.VERTEX_SHADER)
 	ok, err_str := compile_shader(vert_shader, vert_shader_src)
 	if !ok {
-		return false, fmt.tprintf("Error compiling vertex shader: %s", err_str, context.allocator)
+		return nil, false, fmt.tprintf(
+			"Error compiling vertex shader: %s",
+			err_str,
+			context.allocator,
+		)
 	}
 	frag_shader := gl.CreateShader(gl.FRAGMENT_SHADER)
 	ok, err_str = compile_shader(frag_shader, frag_shader_src)
 	if !ok {
-		return false, fmt.tprintf(
+		return nil, false, fmt.tprintf(
 			"Error compiling fragment shader: %s",
 			err_str,
 			context.allocator,
@@ -184,7 +196,11 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (bool, string) {
 	state._shader = gl.CreateProgram()
 	ok, err_str = link_shader_program(state._shader, {vert_shader, frag_shader})
 	if !ok {
-		return false, fmt.tprintf("Error linking shader program: %s", err_str, context.allocator)
+		return nil, false, fmt.tprintf(
+			"Error linking shader program: %s",
+			err_str,
+			context.allocator,
+		)
 	}
 	gl.DeleteShader(vert_shader)
 	gl.DeleteShader(frag_shader)
@@ -209,18 +225,28 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (bool, string) {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 
-	resize_framebuffer(state.width, state.height)
+	resize_framebuffer(cast(i32)state.width, cast(i32)state.height)
 
 
-	return true, ""
+	return state._window_handle, true, ""
 }
 
-clear :: proc(color: u32) {
-	for i in 0 ..< len(state.fb) {
-		state.fb[i] = color
+_draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
+	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
+		state.fb[y * cast(i32)state.width + x] = transmute(u32)color
 	}
 }
-draw_rect :: proc(x, y: i32, w, h: i32, color: u32) {
+
+clear :: proc(color: Color) {
+	for x in 0 ..< state.width {
+		for y in 0 ..< state.height {
+			_draw_pixel(cast(i32)x, cast(i32)y, color)
+		}
+	}
+}
+
+
+draw_rect :: proc(x, y: f64, w, h: f64, color: Color, fill: bool = true) {
 	if x >= state.width || y >= state.height || x + w <= 0 || y + h <= 0 {
 		return
 	}
@@ -230,10 +256,75 @@ draw_rect :: proc(x, y: i32, w, h: i32, color: u32) {
 	end_x := math.min(x + w, state.width)
 	end_y := math.min(y + h, state.height)
 
-	for y in start_y ..< end_y {
-		row_offset := y * state.width
-		for x in start_x ..< end_x {
-			state.fb[row_offset + x] = color
+
+	if fill {
+		// filled
+		for row in start_y ..< end_y {
+			for col in start_x ..< end_x {
+				_draw_pixel(cast(i32)col, cast(i32)row, color)
+			}
+		}
+	} else {
+		// outline
+		for col in start_x ..< end_x {
+			_draw_pixel(cast(i32)col, cast(i32)start_y, color)
+			_draw_pixel(cast(i32)col, cast(i32)end_y - 1, color)
+		}
+		for row in start_y ..< end_y {
+			_draw_pixel(cast(i32)start_x, cast(i32)row, color)
+			_draw_pixel(cast(i32)end_x - 1, cast(i32)row, color)
+		}
+	}
+
+}
+
+draw_circle :: proc(cx, cy, radius: f64, color: Color, fill: bool = true) {
+
+	if radius <= 0 {
+		return
+	}
+
+	if fill {
+		start_x := math.max(0, cx - radius)
+		end_x := math.min(state.width, cx + radius + 1)
+		start_y := math.max(0, cy - radius)
+		end_y := math.min(state.height, cy + radius + 1)
+
+		radius_sq := radius * radius
+
+		for y in start_y ..< end_y {
+			for x in start_x ..< end_x {
+				dx := x - cx
+				dy := y - cy
+				if dx * dx + dy * dy <= radius_sq {
+					_draw_pixel(cast(i32)x, cast(i32)y, color)
+				}
+			}
+		}
+	} else {
+		cx := cast(i32)cx
+		cy := cast(i32)cy
+		x: i32 = cast(i32)radius
+		y: i32 = 0
+		err := 1 - x
+
+		for x >= y {
+			_draw_pixel(cx + x, cy + y, color)
+			_draw_pixel(cx + y, cy + x, color)
+			_draw_pixel(cx - y, cy + x, color)
+			_draw_pixel(cx - x, cy + y, color)
+			_draw_pixel(cx - x, cy - y, color)
+			_draw_pixel(cx - y, cy - x, color)
+			_draw_pixel(cx + y, cy - x, color)
+			_draw_pixel(cx + x, cy - y, color)
+
+			y += 1
+			if err <= 0 {
+				err += 2 * y + 1
+			} else {
+				x -= 1
+				err += 2 * (y - x) + 1
+			}
 		}
 	}
 }
@@ -245,8 +336,8 @@ present :: proc() {
 		0,
 		0,
 		0,
-		state.width,
-		state.height,
+		cast(i32)state.width,
+		cast(i32)state.height,
 		gl.RGBA,
 		gl.UNSIGNED_BYTE,
 		&state.fb[0],
@@ -260,12 +351,19 @@ present :: proc() {
 	gl.DrawArrays(gl.TRIANGLES, 0, 6)
 
 	glfw.SwapBuffers(state._window_handle)
-	glfw.PollEvents()
+
+	ntime := glfw.GetTime()
+	state._delta = ntime - state._ltime
+	state._ltime = ntime
 }
 
 
-get_size :: proc() -> Vec2i {
+get_size :: proc() -> Vec2f {
 	return {state.width, state.height}
+}
+
+get_delta_time :: proc() -> f64 {
+	return state._delta
 }
 
 is_running :: proc() -> bool {

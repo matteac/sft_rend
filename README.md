@@ -7,29 +7,60 @@ Here's how to get a window up and running. This example draws four red squares i
 package main
 
 import "core:fmt"
+import "input"
 import ren "renderer"
+import "vendor:glfw" // used for input constants
 
 main :: proc() {
-	ok, err := ren.init(800, 600, "My App", false)
+	handle, ok, err := ren.init(800, 600, "My App", false)
 	if !ok {
 		fmt.printfln("Error: %s", err)
 		return
 	}
+	input.init(handle)
 
 	// 0xAABBGGRR
-	gray: u32 = 0xff181818
-	red: u32 = 0xff0000ff
+	gray: ren.Color = {24, 24, 24, 255}
+	red: ren.Color = {255, 0, 0, 255}
+
+	size := ren.get_size()
+	circle: ren.Circlef = {size.x / 2, size.y / 2, 16}
+	circle_speed: f64 = 256
 
 	// Main loop
 	for ren.is_running() {
-		size := ren.get_size()
+		delta := ren.get_delta_time()
+		fmt.printfln("%fms delta | %d fps", delta * 1000, cast(u32)(1 / delta))
+
+		input.poll_events()
+		size = ren.get_size()
+
+		if input.is_key_down(glfw.KEY_A) {
+			circle.x -= circle_speed * delta
+		}
+		if input.is_key_down(glfw.KEY_D) {
+			circle.x += circle_speed * delta
+		}
+		if input.is_key_down(glfw.KEY_W) {
+			circle.y -= circle_speed * delta
+		}
+		if input.is_key_down(glfw.KEY_S) {
+			circle.y += circle_speed * delta
+		}
+
+		if input.is_mouse_button_down(glfw.MOUSE_BUTTON_LEFT) {
+			mouse_pos := input.get_mouse_pos()
+			circle.x, circle.y = mouse_pos.x, mouse_pos.y
+		}
 
 		// Draw stuff to a hidden framebuffer
 		ren.clear(gray)
-		ren.draw_rect(0, 0, 20, 20, red)
-		ren.draw_rect(size.x - 20, 0, 20, 20, red)
-		ren.draw_rect(0, size.y - 20, 20, 20, red)
-		ren.draw_rect(size.x - 20, size.y - 20, 20, 20, red)
+		ren.draw_rect(0, 0, 48, 48, red, false)
+		ren.draw_rect(size.x - 48, 0, 48, 48, red)
+		ren.draw_rect(0, size.y - 48, 48, 48, red)
+		ren.draw_rect(size.x - 48, size.y - 48, 48, 48, red, false)
+
+		ren.draw_circle(circle.x, circle.y, circle.radius, {0, 0, 128, 255})
 
 		ren.present()
 	}
@@ -37,12 +68,31 @@ main :: proc() {
 ```
 
 # API
+
+## Renderer
 - `init(width, height, title, vsync)`: Inits glfw/gl and creates a window.
-- `is_running()`: Returns true if the window is open.
+- `is_running()`: Returns `true` if the window is open.
 - `clear(color)``: Fills the screen with one color.
-- `draw_rect(x, y, w, h, color)`: Draws a rectangle.
+- `draw_rect(x, y, w, h, color, fill = true)`: Draws a rectangle. `fill` is optional and defaults to `true`.
+- `draw_circle(cx, cy, radius, color, fill = true)`: Draws a circle. `fill` is optional and defaults to `true`.
 - `present()`: Copies the framebuffer to the screen.
-- `get_size()`: Returns the window's [width, height].
+- `get_size()`: Returns the window's [width, height] as a `Vec2f`.
+- `get_delta_time()`: Returns the delta time in seconds.
+
+## Input
+- `init(handle)`: Initializes the input system. Get the `handle` from `renderer.init(...)`.
+- `poll_events()`: Updates the state of all keys and buttons and polls events from glfw.
+### Keyboard
+- `ìs_key_down(key)`: Returns `true` if the key is being held down.
+- `ìs_key_up(key)`: Returns `true` if the key is not being held down.
+- `ìs_key_pressed(key)`: Returns `true` for the single tick the key is pressed.
+- `ìs_key_released(key)`: Returns `true` for the single tick the key is released.
+### Mouse
+- `get_mouse_pos()`: Returns the mouse [x, y] as a `Vec2f`.
+- `is_mouse_button_down(button)`: Returns `true` if the button is being held down.
+- `is_mouse_button_up(button)`: Returns `true` if the button is not being held down.
+- `ìs_mouse_button_pressed(button)`: Returns `true` for the single tick the button is pressed.
+- `ìs_mouse_button_released(button)`: Returns `true` for the single tick the button is released.
 
 # How it works
 The package keeps a global `Renderer` state with a 32bit per pixel framebuffer in memory. When you call `draw_rect`, you're just changing pixels in the framebuffer.
@@ -57,5 +107,4 @@ odin build .
 # Todo
 - More shapes
 - Alpha blending
-- Input handling 
 - Text drawing
