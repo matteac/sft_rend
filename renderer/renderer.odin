@@ -114,7 +114,7 @@ _fbsz_cb :: proc "c" (handle: glfw.WindowHandle, width, height: i32) {
 }
 
 
-init :: proc(w, h: i32, title: cstring, vsync: bool) -> (glfw.WindowHandle, bool, string) {
+init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandle, bool, string) {
 	state.width = cast(f64)w
 	state.height = cast(f64)h
 	state._running = true
@@ -170,7 +170,9 @@ init :: proc(w, h: i32, title: cstring, vsync: bool) -> (glfw.WindowHandle, bool
 	gl.load_up_to(3, 3, glfw.gl_set_proc_address)
 	glfw.SetFramebufferSizeCallback(state._window_handle, _fbsz_cb)
 
-	if !vsync {
+	if vsync {
+		glfw.SwapInterval(1)
+	} else {
 		glfw.SwapInterval(0)
 	}
 

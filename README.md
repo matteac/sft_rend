@@ -70,7 +70,7 @@ main :: proc() {
 # API
 
 ## Renderer
-- `init(width, height, title, vsync)`: Inits glfw/gl and creates a window.
+- `init(width, height, title, vsync = true)`: Inits glfw/gl and creates a window. `vsync` is optional and defaults to `true`.
 - `is_running()`: Returns `true` if the window is open.
 - `clear(color)`: Fills the screen with one color.
 - `draw_rect(x, y, w, h, color, fill = true)`: Draws a rectangle. `fill` is optional and defaults to `true`.
@@ -83,16 +83,16 @@ main :: proc() {
 - `init(handle)`: Initializes the input system. Get the `handle` from `renderer.init(...)`.
 - `poll_events()`: Updates the state of all keys and buttons and polls events from glfw.
 ### Keyboard
-- `ìs_key_down(key)`: Returns `true` if the key is being held down.
-- `ìs_key_up(key)`: Returns `true` if the key is not being held down.
-- `ìs_key_pressed(key)`: Returns `true` for the single tick the key is pressed.
-- `ìs_key_released(key)`: Returns `true` for the single tick the key is released.
+- `is_key_down(key)`: Returns `true` if the key is being held down.
+- `is_key_up(key)`: Returns `true` if the key is not being held down.
+- `is_key_pressed(key)`: Returns `true` for the single tick the key is pressed.
+- `is_key_released(key)`: Returns `true` for the single tick the key is released.
 ### Mouse
 - `get_mouse_pos()`: Returns the mouse [x, y] as a `Vec2f`.
 - `is_mouse_button_down(button)`: Returns `true` if the button is being held down.
 - `is_mouse_button_up(button)`: Returns `true` if the button is not being held down.
-- `ìs_mouse_button_pressed(button)`: Returns `true` for the single tick the button is pressed.
-- `ìs_mouse_button_released(button)`: Returns `true` for the single tick the button is released.
+- `is_mouse_button_pressed(button)`: Returns `true` for the single tick the button is pressed.
+- `is_mouse_button_released(button)`: Returns `true` for the single tick the button is released.
 
 # How it works
 The package keeps a global `Renderer` state with a 32bit per pixel framebuffer in memory. When you call `draw_rect`, you're just changing pixels in the framebuffer.
