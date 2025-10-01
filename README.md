@@ -72,7 +72,7 @@ main :: proc() {
 ## Renderer
 - `init(width, height, title, vsync)`: Inits glfw/gl and creates a window.
 - `is_running()`: Returns `true` if the window is open.
-- `clear(color)``: Fills the screen with one color.
+- `clear(color)`: Fills the screen with one color.
 - `draw_rect(x, y, w, h, color, fill = true)`: Draws a rectangle. `fill` is optional and defaults to `true`.
 - `draw_circle(cx, cy, radius, color, fill = true)`: Draws a circle. `fill` is optional and defaults to `true`.
 - `present()`: Copies the framebuffer to the screen.
