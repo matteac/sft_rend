@@ -13,7 +13,13 @@ main :: proc() {
 	}
 	input.init(handle)
 
-	// 0xAABBGGRR
+	// This uses stb_truetype, be careful with the font
+	ok, err = ren.init_font("assets/VT323-Regular.ttf")
+	if !ok {
+		fmt.printfln("Error: %s", err)
+		return
+	}
+
 	gray: ren.Color = {24, 24, 24, 255}
 	red: ren.Color = {255, 0, 0, 128}
 
@@ -24,7 +30,6 @@ main :: proc() {
 	// Main loop
 	for ren.is_running() {
 		delta := ren.get_delta_time()
-		fmt.printfln("%fms delta | %d fps", delta * 1000, cast(u32)(1 / delta))
 
 		input.poll_events()
 		size = ren.get_size()
@@ -49,6 +54,8 @@ main :: proc() {
 
 		// Draw stuff to a hidden framebuffer
 		ren.clear(gray)
+		ren.draw_text(fmt.tprintf("%dfps", cast(u32)(1 / delta)), 16, 16, 32, {0, 255, 0, 96})
+
 		ren.draw_rect(0, 0, 48, 48, red, false)
 		ren.draw_rect(size.x - 48, 0, 48, 48, red)
 		ren.draw_rect(0, size.y - 48, 48, 48, red)
@@ -59,4 +66,3 @@ main :: proc() {
 		ren.present()
 	}
 }
-

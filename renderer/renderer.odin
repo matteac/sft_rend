@@ -3,9 +3,11 @@ package renderer
 
 import gl "vendor:OpenGL"
 import "vendor:glfw"
+import stbt "vendor:stb/truetype"
 
 import "core:fmt"
 import "core:math"
+import "core:os"
 import "core:strings"
 
 import "base:runtime"
@@ -42,7 +44,7 @@ frag_shader_src :: `
 Renderer :: struct {
 	width:          f64,
 	height:         f64,
-	fb:             []u32, // RGBA TODO: implement alpha blending (https://en.wikipedia.org/wiki/Alpha_compositing)
+	fb:             []u32,
 	// _"private"
 	_running:       bool,
 	_window_handle: glfw.WindowHandle,
@@ -55,6 +57,10 @@ Renderer :: struct {
 	//
 	_ltime:         f64,
 	_delta:         f64,
+
+	//
+	_font_data:     []u8,
+	_font_info:     stbt.fontinfo,
 }
 
 
@@ -234,6 +240,26 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 	return state._window_handle, true, ""
 }
 
+init_font :: proc(path: string) -> (bool, string) {
+	if state._font_data != nil {
+		delete(state._font_data)
+	}
+
+	font_data, ok := os.read_entire_file(path)
+	if !ok {
+		return false, fmt.tprintf("Failed to read font file: %s", path)
+	}
+
+	state._font_data = font_data
+
+	off := stbt.GetFontOffsetForIndex(&state._font_data[0], 0)
+	if !stbt.InitFont(&state._font_info, &state._font_data[0], off) {
+		return false, "Failed to initialize font with stb_truetype"
+	}
+
+	return true, ""
+}
+
 /* 
 _draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
@@ -286,10 +312,9 @@ _draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 }
 
 clear :: proc(color: Color) {
-	for x in 0 ..< state.width {
-		for y in 0 ..< state.height {
-			_draw_pixel(cast(i32)x, cast(i32)y, color)
-		}
+	for i in 0 ..< len(state.fb) {
+		// background doesnt need alpha blending
+		state.fb[i] = transmute(u32)color
 	}
 }
 
@@ -377,6 +402,71 @@ draw_circle :: proc(cx, cy, radius: f64, color: Color, fill: bool = true) {
 	}
 }
 
+draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
+	if state._font_data == nil {
+		fmt.eprintln("Error: draw_text called before onit_font")
+		return
+	}
+
+	scale := stbt.ScaleForPixelHeight(&state._font_info, cast(f32)size)
+
+	asc, desc, lg: i32
+	stbt.GetFontVMetrics(&state._font_info, &asc, &desc, &lg)
+
+	cx := x
+	cy := y + cast(f64)asc * cast(f64)scale
+
+	prev_ch: rune = -1
+	for ch in text {
+		if ch == '\n' {
+			cx = x
+			cy += cast(f64)(asc - desc + lg) * cast(f64)scale
+			prev_ch = -1
+			continue
+		}
+
+		kern_advance := stbt.GetCodepointKernAdvance(&state._font_info, prev_ch, ch)
+		cx += cast(f64)kern_advance * cast(f64)scale
+
+		w, h, xoff, yoff: i32
+		bitmap := stbt.GetCodepointBitmap(
+			&state._font_info,
+			scale,
+			scale,
+			ch,
+			&w,
+			&h,
+			&xoff,
+			&yoff,
+		)
+
+		if bitmap != nil {
+			draw_pos_x := math.floor(cx) + f64(xoff)
+			draw_pos_y := math.floor(cy) + f64(yoff)
+
+			for row in 0 ..< h {
+				for col in 0 ..< w {
+					alpha := bitmap[row * w + col]
+					if alpha > 0 {
+						_draw_pixel(
+							cast(i32)(draw_pos_x + cast(f64)col),
+							cast(i32)(draw_pos_y + cast(f64)row),
+							color,
+						)
+					}
+				}
+			}
+			stbt.FreeBitmap(bitmap, nil)
+		}
+
+		advance_width: i32
+		stbt.GetCodepointHMetrics(&state._font_info, ch, &advance_width, nil)
+		cx += cast(f64)advance_width * cast(f64)scale
+
+		prev_ch = ch
+	}
+}
+
 present :: proc() {
 	gl.BindTexture(gl.TEXTURE_2D, state._texture_id)
 	gl.TexSubImage2D(
@@ -417,4 +507,3 @@ get_delta_time :: proc() -> f64 {
 is_running :: proc() -> bool {
 	return state._running && !glfw.WindowShouldClose(state._window_handle)
 }
-
