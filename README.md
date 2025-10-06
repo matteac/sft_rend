@@ -7,85 +7,71 @@ Here's how to get a window up and running. This example draws four red squares i
 package main
 
 import "core:fmt"
+import "vendor:glfw"
+
 import "input"
 import ren "renderer"
-import "vendor:glfw" // used for input constants
 
 main :: proc() {
-	handle, ok, err := ren.init(800, 600, "My App", false)
-	if !ok {
-		fmt.printfln("Error: %s", err)
-		return
-	}
+	handle, ok, err_str := ren.init(800, 600, "Renderer Example", false)
 	input.init(handle)
 
-	// This uses stb_truetype, be careful with the font
-	ok, err = ren.init_font("assets/VT323-Regular.ttf")
-	if !ok {
-		fmt.printfln("Error: %s", err)
-		return
-	}
+	ok, err_str = ren.init_font("assets/VT323-Regular.ttf")
 
-	gray: ren.Color = {24, 24, 24, 255}
-	red: ren.Color = {255, 0, 0, 128}
+	SPEED :: 200
+	BACKGROUND_COLOR :: ren.Color{15, 15, 20, 255}
+	RECT_COLOR :: ren.Color{220, 70, 70, 255}
+	CIRCLE_COLOR :: ren.Color{70, 70, 220, 255}
+	TEXT_COLOR :: ren.Color{220, 220, 220, 255}
 
-	size := ren.get_size()
-	circle: ren.Circlef = {size.x / 2, size.y / 2, 16}
-	circle_speed: f64 = 256
 
-	// Main loop
+	circle := ren.Circlef{300, 300, 80}
 	for ren.is_running() {
 		delta := ren.get_delta_time()
 
 		input.poll_events()
-		size = ren.get_size()
 
 		if input.is_key_down(glfw.KEY_A) {
-			circle.x -= circle_speed * delta
+			circle.x -= SPEED * delta
 		}
 		if input.is_key_down(glfw.KEY_D) {
-			circle.x += circle_speed * delta
+			circle.x += SPEED * delta
 		}
 		if input.is_key_down(glfw.KEY_W) {
-			circle.y -= circle_speed * delta
+			circle.y -= SPEED * delta
 		}
 		if input.is_key_down(glfw.KEY_S) {
-			circle.y += circle_speed * delta
+			circle.y += SPEED * delta
 		}
 
-		if input.is_mouse_button_down(glfw.MOUSE_BUTTON_LEFT) {
-			mouse_pos := input.get_mouse_pos()
-			circle.x, circle.y = mouse_pos.x, mouse_pos.y
-		}
 
-		// Draw stuff to a hidden framebuffer
-		ren.clear(gray)
-		ren.draw_text(fmt.tprintf("%dfps", cast(u32)(1 / delta)), 16, 16, 32, {0, 255, 0, 96})
+		ren.clear(BACKGROUND_COLOR)
 
-		ren.draw_rect(0, 0, 48, 48, red, false)
-		ren.draw_rect(size.x - 48, 0, 48, 48, red)
-		ren.draw_rect(0, size.y - 48, 48, 48, red)
-		ren.draw_rect(size.x - 48, size.y - 48, 48, 48, red, false)
+		ren.fill_rect(100, 100, 200, 150, RECT_COLOR)
+		ren.fill_circle(circle.x, circle.y, circle.radius, CIRCLE_COLOR)
 
-		ren.draw_circle(circle.x, circle.y, circle.radius, {0, 0, 255, 128})
-
+		ren.draw_text("Renderer Example", 20, 20, 32, TEXT_COLOR)
 		ren.present()
 	}
 }
-
 ```
 
 # API
 
 ## Renderer
+### Core
 - `init(width, height, title, vsync = true)`: Inits glfw/gl and creates a window. `vsync` is optional and defaults to `true`.
-- `is_running()`: Returns `true` if the window is open.
-- `clear(color)`: Fills the screen with one color.
-- `draw_rect(x, y, w, h, color, fill = true)`: Draws a rectangle. `fill` is optional and defaults to `true`.
-- `draw_circle(cx, cy, radius, color, fill = true)`: Draws a circle. `fill` is optional and defaults to `true`.
 - `present()`: Copies the framebuffer to the screen.
+- `is_running()`: Returns `true` if the window is open.
 - `get_size()`: Returns the window's [width, height] as a `Vec2f`.
 - `get_delta_time()`: Returns the delta time in seconds.
+### Rendering
+- `clear(color)`: Fills the screen with one color.
+- `draw_pixel(x, y: i32, color: Color)`: Draws a single pixel.
+- `draw_rect(x, y, w, h, color)`: Draws the outline of a rectangle.
+- `fill_rect(x, y, w, h, color)`: Draws a filled rectangle.
+- `draw_circle(cx, cy, radius, color)`: Draws the outline of a circle.
+- `fill_circle(cx, cy, radius, color)`: Draws a filled circle.
 ### Text Rendering (stb_truetype)
 - `init_font(path)`: Inits a font from a `.ttf` file for drawing text.
 - `draw_text(text, x, y, size, color)`: Draws text using the previously initialized font.

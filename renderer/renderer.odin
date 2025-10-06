@@ -7,13 +7,14 @@ import stbt "vendor:stb/truetype"
 
 import "core:fmt"
 import "core:math"
+import "core:math/linalg"
 import "core:os"
 import "core:strings"
 
 import "base:runtime"
 
 
-vert_shader_src :: `
+vert_shader_src := `
     #version 330 core
     layout (location = 0) in vec2 a_pos;
     layout (location = 1) in vec2 a_texture_coord;
@@ -27,7 +28,7 @@ vert_shader_src :: `
 `
 
 
-frag_shader_src :: `
+frag_shader_src := `
     #version 330 core
 
     in vec2 texture_coord;
@@ -66,7 +67,7 @@ Renderer :: struct {
 
 state: Renderer = {}
 
-compile_shader :: proc(shader: u32, shader_src: string) -> (bool, string) {
+_compile_shader :: proc(shader: u32, shader_src: string) -> (bool, string) {
 	csrc := strings.clone_to_cstring(shader_src, context.temp_allocator)
 	gl.ShaderSource(shader, 1, &csrc, nil)
 	gl.CompileShader(shader)
@@ -81,7 +82,7 @@ compile_shader :: proc(shader: u32, shader_src: string) -> (bool, string) {
 	return true, ""
 }
 
-link_shader_program :: proc(program: u32, shaders: []u32) -> (bool, string) {
+_link_shader_program :: proc(program: u32, shaders: []u32) -> (bool, string) {
 	for shader in shaders {
 		gl.AttachShader(program, shader)
 	}
@@ -97,7 +98,7 @@ link_shader_program :: proc(program: u32, shaders: []u32) -> (bool, string) {
 	return true, ""
 }
 
-resize_framebuffer :: proc(width, height: i32) {
+_resize_framebuffer :: proc(width, height: i32) {
 	if width <= 0 || height <= 0 {
 		return
 	}
@@ -116,7 +117,7 @@ _fbsz_cb :: proc "c" (handle: glfw.WindowHandle, width, height: i32) {
 	gl.Viewport(0, 0, width, height)
 
 	context = runtime.default_context()
-	resize_framebuffer(width, height)
+	_resize_framebuffer(width, height)
 }
 
 
@@ -184,7 +185,7 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 
 
 	vert_shader := gl.CreateShader(gl.VERTEX_SHADER)
-	ok, err_str := compile_shader(vert_shader, vert_shader_src)
+	ok, err_str := _compile_shader(vert_shader, vert_shader_src)
 	if !ok {
 		return nil, false, fmt.tprintf(
 			"Error compiling vertex shader: %s",
@@ -193,7 +194,7 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 		)
 	}
 	frag_shader := gl.CreateShader(gl.FRAGMENT_SHADER)
-	ok, err_str = compile_shader(frag_shader, frag_shader_src)
+	ok, err_str = _compile_shader(frag_shader, frag_shader_src)
 	if !ok {
 		return nil, false, fmt.tprintf(
 			"Error compiling fragment shader: %s",
@@ -203,7 +204,7 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 	}
 
 	state._shader = gl.CreateProgram()
-	ok, err_str = link_shader_program(state._shader, {vert_shader, frag_shader})
+	ok, err_str = _link_shader_program(state._shader, {vert_shader, frag_shader})
 	if !ok {
 		return nil, false, fmt.tprintf(
 			"Error linking shader program: %s",
@@ -234,7 +235,7 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
 
-	resize_framebuffer(cast(i32)state.width, cast(i32)state.height)
+	_resize_framebuffer(cast(i32)state.width, cast(i32)state.height)
 
 
 	return state._window_handle, true, ""
@@ -261,13 +262,13 @@ init_font :: proc(path: string) -> (bool, string) {
 }
 
 /* 
-_draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
+draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
 		state.fb[y * cast(i32)state.width + x] = transmute(u32)color
 	}
 }
 */
-_draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
+draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
 		index := y * cast(i32)state.width + x
 
@@ -318,8 +319,23 @@ clear :: proc(color: Color) {
 	}
 }
 
+fill_rect :: proc(x, y: f64, w, h: f64, color: Color) {
+	if x >= state.width || y >= state.height || x + w <= 0 || y + h <= 0 {
+		return
+	}
 
-draw_rect :: proc(x, y: f64, w, h: f64, color: Color, fill: bool = true) {
+	start_x := math.max(x, 0)
+	start_y := math.max(y, 0)
+	end_x := math.min(x + w, state.width)
+	end_y := math.min(y + h, state.height)
+
+	for row in start_y ..< end_y {
+		for col in start_x ..< end_x {
+			draw_pixel(cast(i32)col, cast(i32)row, color)
+		}
+	}
+}
+draw_rect :: proc(x, y: f64, w, h: f64, color: Color) {
 	if x >= state.width || y >= state.height || x + w <= 0 || y + h <= 0 {
 		return
 	}
@@ -330,76 +346,126 @@ draw_rect :: proc(x, y: f64, w, h: f64, color: Color, fill: bool = true) {
 	end_y := math.min(y + h, state.height)
 
 
-	if fill {
-		// filled
-		for row in start_y ..< end_y {
-			for col in start_x ..< end_x {
-				_draw_pixel(cast(i32)col, cast(i32)row, color)
-			}
-		}
-	} else {
-		// outline
-		for col in start_x ..< end_x {
-			_draw_pixel(cast(i32)col, cast(i32)start_y, color)
-			_draw_pixel(cast(i32)col, cast(i32)end_y - 1, color)
-		}
-		for row in start_y ..< end_y {
-			_draw_pixel(cast(i32)start_x, cast(i32)row, color)
-			_draw_pixel(cast(i32)end_x - 1, cast(i32)row, color)
-		}
+	for col in start_x ..< end_x {
+		draw_pixel(cast(i32)col, cast(i32)start_y, color)
+		draw_pixel(cast(i32)col, cast(i32)end_y - 1, color)
+	}
+	for row in start_y ..< end_y {
+		draw_pixel(cast(i32)start_x, cast(i32)row, color)
+		draw_pixel(cast(i32)end_x - 1, cast(i32)row, color)
 	}
 
 }
 
-draw_circle :: proc(cx, cy, radius: f64, color: Color, fill: bool = true) {
-
+fill_circle :: proc(cx, cy, radius: f64, color: Color) {
 	if radius <= 0 {
 		return
 	}
 
-	if fill {
-		start_x := math.max(0, cx - radius)
-		end_x := math.min(state.width, cx + radius + 1)
-		start_y := math.max(0, cy - radius)
-		end_y := math.min(state.height, cy + radius + 1)
+	start_x := math.max(0, cx - radius)
+	end_x := math.min(state.width, cx + radius + 1)
+	start_y := math.max(0, cy - radius)
+	end_y := math.min(state.height, cy + radius + 1)
 
-		radius_sq := radius * radius
+	radius_sq := radius * radius
 
-		for y in start_y ..< end_y {
-			for x in start_x ..< end_x {
-				dx := x - cx
-				dy := y - cy
-				if dx * dx + dy * dy <= radius_sq {
-					_draw_pixel(cast(i32)x, cast(i32)y, color)
-				}
-			}
-		}
-	} else {
-		cx := cast(i32)cx
-		cy := cast(i32)cy
-		x: i32 = cast(i32)radius
-		y: i32 = 0
-		err := 1 - x
-
-		for x >= y {
-			_draw_pixel(cx + x, cy + y, color)
-			_draw_pixel(cx + y, cy + x, color)
-			_draw_pixel(cx - y, cy + x, color)
-			_draw_pixel(cx - x, cy + y, color)
-			_draw_pixel(cx - x, cy - y, color)
-			_draw_pixel(cx - y, cy - x, color)
-			_draw_pixel(cx + y, cy - x, color)
-			_draw_pixel(cx + x, cy - y, color)
-
-			y += 1
-			if err <= 0 {
-				err += 2 * y + 1
-			} else {
-				x -= 1
-				err += 2 * (y - x) + 1
+	for y in start_y ..< end_y {
+		for x in start_x ..< end_x {
+			dx := x - cx
+			dy := y - cy
+			if dx * dx + dy * dy <= radius_sq {
+				draw_pixel(cast(i32)x, cast(i32)y, color)
 			}
 		}
 	}
+}
+draw_circle :: proc(cx, cy, radius: f64, color: Color) {
+	if radius <= 0 {
+		return
+	}
+
+	cx := cast(i32)cx
+	cy := cast(i32)cy
+	x: i32 = cast(i32)radius
+	y: i32 = 0
+	err := 1 - x
+
+	for x >= y {
+		draw_pixel(cx + x, cy + y, color)
+		draw_pixel(cx + y, cy + x, color)
+		draw_pixel(cx - y, cy + x, color)
+		draw_pixel(cx - x, cy + y, color)
+		draw_pixel(cx - x, cy - y, color)
+		draw_pixel(cx - y, cy - x, color)
+		draw_pixel(cx + y, cy - x, color)
+		draw_pixel(cx + x, cy - y, color)
+
+		y += 1
+		if err <= 0 {
+			err += 2 * y + 1
+		} else {
+			x -= 1
+			err += 2 * (y - x) + 1
+		}
+	}
+}
+
+draw_line :: proc(x1, y1, x2, y2: f64, color: Color) {
+	dx := x2 - x1
+	dy := y2 - y1
+
+	steps := math.max(math.abs(dx), math.abs(dy))
+	if steps == 0 {
+		draw_pixel(cast(i32)x1, cast(i32)y1, color)
+		return
+	}
+
+	x_inc := dx / steps
+	y_inc := dy / steps
+
+	x, y := x1, y1
+	for i in 0 ..= steps {
+		draw_pixel(cast(i32)x, cast(i32)y, color)
+		x += x_inc
+		y += y_inc
+	}
+}
+
+_is_point_in_triangle :: proc(p, a, b, c: Vec2f) -> bool {
+	d1 := (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
+	d2 := (p.x - b.x) * (c.y - b.y) - (p.y - b.y) * (c.x - b.x)
+	d3 := (p.x - c.x) * (a.y - c.y) - (p.y - c.y) * (a.x - c.x)
+
+	has_neg := (d1 < 0) || (d2 < 0) || (d3 < 0)
+	has_pos := (d1 > 0) || (d2 > 0) || (d3 > 0)
+
+	return !(has_neg && has_pos)
+}
+fill_triangle :: proc(v1, v2, v3: Vec2f, color: Color) {
+	min_x := math.floor(math.min(v1.x, math.min(v2.x, v3.x)))
+	max_x := math.ceil(math.max(v1.x, math.max(v2.x, v3.x)))
+	min_y := math.floor(math.min(v1.y, math.min(v2.y, v3.y)))
+	max_y := math.ceil(math.max(v1.y, math.max(v2.y, v3.y)))
+
+	min_x = math.max(0, min_x)
+	min_y = math.max(0, min_y)
+	max_x = math.min(state.width, max_x)
+	max_y = math.min(state.height, max_y)
+
+	for y in min_y ..< max_y {
+		for x in min_x ..< max_x {
+			point_to_check := Vec2f{cast(f64)x + 0.5, cast(f64)y + 0.5}
+			if _is_point_in_triangle(point_to_check, v1, v2, v3) {
+				draw_pixel(cast(i32)x, cast(i32)y, color)
+			}
+		}
+	}
+}
+
+draw_triangle :: proc(v1, v2, v3: Vec2f, color: Color) {
+	draw_line(v1.x, v1.y, v2.x, v2.y, color)
+	draw_line(v2.x, v2.y, v3.x, v3.y, color)
+	draw_line(v3.x, v3.y, v1.x, v1.y, color)
 }
 
 draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
@@ -448,7 +514,7 @@ draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
 				for col in 0 ..< w {
 					alpha := bitmap[row * w + col]
 					if alpha > 0 {
-						_draw_pixel(
+						draw_pixel(
 							cast(i32)(draw_pos_x + cast(f64)col),
 							cast(i32)(draw_pos_y + cast(f64)row),
 							color,
