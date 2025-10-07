@@ -120,5 +120,6 @@ odin build .
 
 # Todo
 - More shapes
+- Move error handling to [`Maybe(T)`](https://odin-lang.org/docs/overview/#maybet)
 <!-- - Alpha blending -->
 <!-- - Text drawing -->

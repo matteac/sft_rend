@@ -242,13 +242,19 @@ init :: proc(w, h: i32, title: cstring, vsync: bool = true) -> (glfw.WindowHandl
 }
 
 init_font :: proc(path: string) -> (bool, string) {
-	if state._font_data != nil {
-		delete(state._font_data)
-	}
-
 	font_data, ok := os.read_entire_file(path)
 	if !ok {
 		return false, fmt.tprintf("Failed to read font file: %s", path)
+	}
+
+	return init_font_from_data(font_data)
+}
+init_font_from_data :: proc(font_data: []u8) -> (bool, string) {
+	if font_data == nil {
+		return false, "Font data is nil"
+	}
+	if state._font_data != nil {
+		delete(state._font_data)
 	}
 
 	state._font_data = font_data

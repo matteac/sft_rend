@@ -29,6 +29,10 @@ main :: proc() {
 	}
 	input.init(handle)
 
+	// https://odin-lang.org/docs/overview/#loadstring-path-or-loadstring-path-type
+	// font_data :: #load("assets/VT323-Regular.ttf")
+	// ok, err_str = ren.init_font_from_data(font_data) // bundle font in the executable with `#load`
+
 	ok, err_str = ren.init_font("assets/VT323-Regular.ttf")
 	if !ok {
 		fmt.eprintfln("Error initializing font: %s", err_str)
