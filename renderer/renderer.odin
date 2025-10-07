@@ -268,9 +268,9 @@ draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	}
 }
 */
-draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
-	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
-		index := y * cast(i32)state.width + x
+draw_pixel :: #force_inline proc(x, y: u32, color: Color) {
+	if x >= 0 && x < cast(u32)state.width && y >= 0 && y < cast(u32)state.height {
+		index := y * cast(u32)state.width + x
 
 		if color.a == 0 {
 			return
@@ -320,41 +320,42 @@ clear :: proc(color: Color) {
 }
 
 fill_rect :: proc(x, y: f64, w, h: f64, color: Color) {
-	if x >= state.width || y >= state.height || x + w <= 0 || y + h <= 0 {
+	if x + w <= 0 || y + h <= 0 || x >= state.width || y >= state.height {
 		return
 	}
 
-	start_x := math.max(x, 0)
-	start_y := math.max(y, 0)
-	end_x := math.min(x + w, state.width)
-	end_y := math.min(y + h, state.height)
+	min_px := math.floor(x)
+	max_px := math.ceil(x + w)
+	min_py := math.floor(y)
+	max_py := math.ceil(y + h)
 
-	for row in start_y ..< end_y {
-		for col in start_x ..< end_x {
-			draw_pixel(cast(i32)col, cast(i32)row, color)
+	min_px = math.max(0, min_px)
+	max_px = math.min(state.width, max_px)
+	min_py = math.max(0, min_py)
+	max_py = math.min(state.height, max_py)
+
+	for py in min_py ..< max_py {
+		for px in min_px ..< max_px {
+			cover_x := math.max(0, math.min(px + 1, x + w) - math.max(px, x))
+			cover_y := math.max(0, math.min(py + 1, y + h) - math.max(py, y))
+			coverage := cover_x * cover_y
+
+			if coverage > 0 {
+				final_color := color
+				final_color.a = cast(u8)(cast(f64)color.a * coverage)
+				draw_pixel(cast(u32)px, cast(u32)py, final_color)
+			}
 		}
 	}
 }
-draw_rect :: proc(x, y: f64, w, h: f64, color: Color) {
-	if x >= state.width || y >= state.height || x + w <= 0 || y + h <= 0 {
+draw_rect :: proc(x, y, w, h, thickness: f64, color: Color) {
+	if thickness <= 0 || thickness * 2 > w || thickness * 2 > h {
 		return
 	}
-
-	start_x := math.max(x, 0)
-	start_y := math.max(y, 0)
-	end_x := math.min(x + w, state.width)
-	end_y := math.min(y + h, state.height)
-
-
-	for col in start_x ..< end_x {
-		draw_pixel(cast(i32)col, cast(i32)start_y, color)
-		draw_pixel(cast(i32)col, cast(i32)end_y - 1, color)
-	}
-	for row in start_y ..< end_y {
-		draw_pixel(cast(i32)start_x, cast(i32)row, color)
-		draw_pixel(cast(i32)end_x - 1, cast(i32)row, color)
-	}
-
+	fill_rect(x, y, w, thickness, color)
+	fill_rect(x, y + h - thickness, w, thickness, color)
+	fill_rect(x, y + thickness, thickness, h - 2 * thickness, color)
+	fill_rect(x + w - thickness, y + thickness, thickness, h - 2 * thickness, color)
 }
 
 fill_circle :: proc(cx, cy, radius: f64, color: Color) {
@@ -362,115 +363,166 @@ fill_circle :: proc(cx, cy, radius: f64, color: Color) {
 		return
 	}
 
-	start_x := math.max(0, cx - radius)
+	start_x := math.max(0, cx - radius - 1)
 	end_x := math.min(state.width, cx + radius + 1)
-	start_y := math.max(0, cy - radius)
+	start_y := math.max(0, cy - radius - 1)
 	end_y := math.min(state.height, cy + radius + 1)
-
-	radius_sq := radius * radius
 
 	for y in start_y ..< end_y {
 		for x in start_x ..< end_x {
 			dx := x - cx
 			dy := y - cy
-			if dx * dx + dy * dy <= radius_sq {
-				draw_pixel(cast(i32)x, cast(i32)y, color)
+			dist_sq := dx * dx + dy * dy
+			dist := math.sqrt(dist_sq)
+
+			edge_dist := dist - radius
+
+			coverage := 1.0 - math.clamp(edge_dist + 0.5, 0, 1)
+
+			if coverage > 0 {
+				final_color := color
+				final_color.a = cast(u8)(cast(f64)color.a * coverage)
+
+				draw_pixel(cast(u32)x, cast(u32)y, final_color)
 			}
 		}
 	}
 }
-draw_circle :: proc(cx, cy, radius: f64, color: Color) {
-	if radius <= 0 {
+draw_circle :: proc(cx, cy, radius, thickness: f64, color: Color) {
+	if radius <= 0 || thickness <= 0 {
 		return
 	}
 
-	cx := cast(i32)cx
-	cy := cast(i32)cy
-	x: i32 = cast(i32)radius
-	y: i32 = 0
-	err := 1 - x
+	half_thick := thickness / 2
 
-	for x >= y {
-		draw_pixel(cx + x, cy + y, color)
-		draw_pixel(cx + y, cy + x, color)
-		draw_pixel(cx - y, cy + x, color)
-		draw_pixel(cx - x, cy + y, color)
-		draw_pixel(cx - x, cy - y, color)
-		draw_pixel(cx - y, cy - x, color)
-		draw_pixel(cx + y, cy - x, color)
-		draw_pixel(cx + x, cy - y, color)
+	outer_radius := radius + half_thick + 1
+	min_px := math.floor(cx - outer_radius)
+	max_px := math.ceil(cx + outer_radius)
+	min_py := math.floor(cy - outer_radius)
+	max_py := math.ceil(cy + outer_radius)
 
-		y += 1
-		if err <= 0 {
-			err += 2 * y + 1
-		} else {
-			x -= 1
-			err += 2 * (y - x) + 1
+	min_px = math.max(0, min_px)
+	max_px = math.min(state.width, max_px)
+	min_py = math.max(0, min_py)
+	max_py = math.min(state.height, max_py)
+
+	for py in min_py ..< max_py {
+		for px in min_px ..< max_px {
+			dx := (px + 0.5) - cx
+			dy := (py + 0.5) - cy
+			dist_from_center := math.sqrt(dx * dx + dy * dy)
+
+			dist_from_outline := dist_from_center - radius
+
+			coverage := math.clamp(0.5 - (math.abs(dist_from_outline) - half_thick), 0, 1)
+
+			if coverage > 0 {
+				final_color := color
+				final_color.a = cast(u8)(cast(f64)color.a * coverage)
+				draw_pixel(cast(u32)px, cast(u32)py, final_color)
+			}
 		}
 	}
 }
 
-draw_line :: proc(x1, y1, x2, y2: f64, color: Color) {
-	dx := x2 - x1
-	dy := y2 - y1
-
-	steps := math.max(math.abs(dx), math.abs(dy))
-	if steps == 0 {
-		draw_pixel(cast(i32)x1, cast(i32)y1, color)
+draw_line :: proc(x1, y1, x2, y2, thickness: f64, color: Color) {
+	if thickness <= 0 {
 		return
 	}
 
-	x_inc := dx / steps
-	y_inc := dy / steps
+	half_thick := thickness / 2
 
-	x, y := x1, y1
-	for i in 0 ..= steps {
-		draw_pixel(cast(i32)x, cast(i32)y, color)
-		x += x_inc
-		y += y_inc
+	a := Vec2f{x1, y1}
+	b := Vec2f{x2, y2}
+	ab := b - a
+
+	min_px := math.floor(math.min(x1, x2) - half_thick - 1)
+	max_px := math.ceil(math.max(x1, x2) + half_thick + 1)
+	min_py := math.floor(math.min(y1, y2) - half_thick - 1)
+	max_py := math.ceil(math.max(y1, y2) + half_thick + 1)
+
+	min_px = math.max(0, min_px)
+	max_px = math.min(state.width, max_px)
+	min_py = math.max(0, min_py)
+	max_py = math.min(state.height, max_py)
+
+	len_sq := linalg.dot(ab, ab)
+
+	for py in min_py ..< max_py {
+		for px in min_px ..< max_px {
+			p := Vec2f{px + 0.5, py + 0.5}
+			ap := p - a
+
+			dist: f64
+			if len_sq == 0 {
+				dist = linalg.length(ap)
+			} else {
+				t := linalg.dot(ap, ab) / len_sq
+				t_clamped := math.clamp(t, 0, 1)
+				closest_point := a + ab * t_clamped
+				dist = linalg.distance(p, closest_point)
+			}
+
+			coverage := math.clamp(0.5 - (dist - half_thick), 0, 1)
+
+			if coverage > 0 {
+				final_color := color
+				final_color.a = cast(u8)(cast(f64)color.a * coverage)
+				draw_pixel(cast(u32)px, cast(u32)py, final_color)
+			}
+		}
 	}
 }
 
-_is_point_in_triangle :: proc(p, a, b, c: Vec2f) -> bool {
-	d1 := (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
-	d2 := (p.x - b.x) * (c.y - b.y) - (p.y - b.y) * (c.x - b.x)
-	d3 := (p.x - c.x) * (a.y - c.y) - (p.y - c.y) * (a.x - c.x)
-
-	has_neg := (d1 < 0) || (d2 < 0) || (d3 < 0)
-	has_pos := (d1 > 0) || (d2 > 0) || (d3 > 0)
-
-	return !(has_neg && has_pos)
+_edge_function :: proc(a, b, p: Vec2f) -> f64 {
+	return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
 }
+
 fill_triangle :: proc(v1, v2, v3: Vec2f, color: Color) {
-	min_x := math.floor(math.min(v1.x, math.min(v2.x, v3.x)))
-	max_x := math.ceil(math.max(v1.x, math.max(v2.x, v3.x)))
-	min_y := math.floor(math.min(v1.y, math.min(v2.y, v3.y)))
-	max_y := math.ceil(math.max(v1.y, math.max(v2.y, v3.y)))
+	min_x := math.floor(math.min(v1.x, math.min(v2.x, v3.x)) - 1)
+	max_x := math.ceil(math.max(v1.x, math.max(v2.x, v3.x)) + 1)
+	min_y := math.floor(math.min(v1.y, math.min(v2.y, v3.y)) - 1)
+	max_y := math.ceil(math.max(v1.y, math.max(v2.y, v3.y)) + 1)
 
 	min_x = math.max(0, min_x)
-	min_y = math.max(0, min_y)
 	max_x = math.min(state.width, max_x)
+	min_y = math.max(0, min_y)
 	max_y = math.min(state.height, max_y)
+
+	e1_len := linalg.distance(v1, v2)
+	e2_len := linalg.distance(v2, v3)
+	e3_len := linalg.distance(v3, v1)
 
 	for y in min_y ..< max_y {
 		for x in min_x ..< max_x {
-			point_to_check := Vec2f{cast(f64)x + 0.5, cast(f64)y + 0.5}
-			if _is_point_in_triangle(point_to_check, v1, v2, v3) {
-				draw_pixel(cast(i32)x, cast(i32)y, color)
+			p := Vec2f{x + 0.5, y + 0.5}
+
+			d1 := _edge_function(v1, v2, p) / e1_len
+			d2 := _edge_function(v2, v3, p) / e2_len
+			d3 := _edge_function(v3, v1, p) / e3_len
+
+			dist := math.max(d1, math.max(d2, d3))
+
+			coverage := math.clamp(0.5 - dist, 0, 1)
+
+			if coverage > 0 {
+				final_color := color
+				final_color.a = cast(u8)(cast(f64)color.a * coverage)
+				draw_pixel(cast(u32)x, cast(u32)y, final_color)
 			}
 		}
 	}
 }
 
-draw_triangle :: proc(v1, v2, v3: Vec2f, color: Color) {
-	draw_line(v1.x, v1.y, v2.x, v2.y, color)
-	draw_line(v2.x, v2.y, v3.x, v3.y, color)
-	draw_line(v3.x, v3.y, v1.x, v1.y, color)
+draw_triangle :: proc(v1, v2, v3: Vec2f, thickness: f64, color: Color) {
+	draw_line(v1.x, v1.y, v2.x, v2.y, thickness, color)
+	draw_line(v2.x, v2.y, v3.x, v3.y, thickness, color)
+	draw_line(v3.x, v3.y, v1.x, v1.y, thickness, color)
 }
 
 draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
 	if state._font_data == nil {
-		fmt.eprintln("Error: draw_text called before onit_font")
+		fmt.eprintln("Error: draw_text called before init_font")
 		return
 	}
 
@@ -480,7 +532,7 @@ draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
 	stbt.GetFontVMetrics(&state._font_info, &asc, &desc, &lg)
 
 	cx := x
-	cy := y + cast(f64)asc * cast(f64)scale
+	cy := math.floor(y + cast(f64)asc * cast(f64)scale)
 
 	prev_ch: rune = -1
 	for ch in text {
@@ -513,11 +565,15 @@ draw_text :: proc(text: string, x, y: f64, size: f64, color: Color) {
 			for row in 0 ..< h {
 				for col in 0 ..< w {
 					alpha := bitmap[row * w + col]
+
 					if alpha > 0 {
+						final_color := color
+						final_color.a = cast(u8)(cast(f64)alpha * (cast(f64)color.a / 255.0))
+
 						draw_pixel(
-							cast(i32)(draw_pos_x + cast(f64)col),
-							cast(i32)(draw_pos_y + cast(f64)row),
-							color,
+							cast(u32)(draw_pos_x + cast(f64)col),
+							cast(u32)(draw_pos_y + cast(f64)row),
+							final_color,
 						)
 					}
 				}

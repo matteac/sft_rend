@@ -2,7 +2,7 @@
 This lets you draw pixels to a window without messing with OpenGL directly.
 
 # Getting Started
-Here's how to get a window up and running. This example draws four red squares in the corners.
+Here's how to get a window up and running. This example draws a movable circle and a static rectangle.
 ```odin
 package main
 
@@ -55,8 +55,8 @@ main :: proc() {
 		ren.clear(BACKGROUND_COLOR)
 
 		if show_outline {
-			ren.draw_rect(100, 100, 200, 150, RECT_COLOR)
-			ren.draw_circle(circle.x, circle.y, circle.radius, CIRCLE_COLOR)
+			ren.draw_rect(100, 100, 200, 150, 1, RECT_COLOR)
+			ren.draw_circle(circle.x, circle.y, circle.radius, 1, CIRCLE_COLOR)
 		} else {
 			ren.fill_rect(100, 100, 200, 150, RECT_COLOR)
 			ren.fill_circle(circle.x, circle.y, circle.radius, CIRCLE_COLOR)
@@ -81,12 +81,12 @@ main :: proc() {
 ### Rendering
 - `clear(color)`: Fills the screen with one color.
 - `draw_pixel(x, y, color)`: Draws a single pixel.
-- `draw_rect(x, y, w, h, color)`: Draws the outline of a rectangle.
+- `draw_rect(x, y, w, h, thickness, color)`: Draws the outline of a rectangle.
 - `fill_rect(x, y, w, h, color)`: Draws a filled rectangle.
-- `draw_circle(cx, cy, radius, color)`: Draws the outline of a circle.
+- `draw_circle(cx, cy, radius, thickness, color)`: Draws the outline of a circle.
 - `fill_circle(cx, cy, radius, color)`: Draws a filled circle.
-- `draw_line(x1, y1, x2, y2, color)`: Draws a line between two points.
-- `draw_triangle(v1, v2, v3, color)`: Draws the outline of a triangle.
+- `draw_line(x1, y1, x2, y2, thickness, color)`: Draws a line between two points.
+- `draw_triangle(v1, v2, v3, thickness, color)`: Draws the outline of a triangle.
 - `fill_triangle(v1, v2, v3, color)`: Draws a filled triangle.
 ### Text Rendering (stb_truetype)
 - `init_font(path)`: Inits a font from a `.ttf` file for drawing text.

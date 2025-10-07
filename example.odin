@@ -59,11 +59,12 @@ main :: proc() {
 	}
 
 	particles: [dynamic]Particle
-	particles_per_second := 500.0
+	particles_per_second := 1500.0
 	particle_spawn_timer: f64 = 0
 
 
 	for ren.is_running() {
+		screen_size = ren.get_size()
 		delta := ren.get_delta_time()
 		input.poll_events()
 
@@ -125,7 +126,7 @@ main :: proc() {
 		for i := len(particles) - 1; i >= 0; i -= 1 {
 			particles[i].pos += particles[i].vel * delta
 			particles[i].lifetime -= delta
-			particles[i].vel.y += 98.0 * delta // gravity
+			particles[i].vel.y += (98.0 * 4) * delta // gravity * 4
 			if particles[i].lifetime <= 0 {
 				ordered_remove(&particles, i)
 			}
@@ -155,19 +156,20 @@ main :: proc() {
 		}
 
 		for star in stars {
-			ren.draw_pixel(cast(i32)star.pos.x, cast(i32)star.pos.y, {200, 200, 255, 150})
+			ren.draw_pixel(cast(u32)star.pos.x, cast(u32)star.pos.y, {200, 200, 255, 150})
 		}
 
 
 		if show_outlines {
-			ren.draw_rect(400, 100, rect_w, 80, RECT_COLOR)
-			ren.draw_circle(500, circle_y, 50, CIRCLE_COLOR)
-			ren.draw_triangle(v1, v2, v3, TRIANGLE_COLOR)
+			ren.draw_rect(400, 100, rect_w, 80, 1, RECT_COLOR)
+			ren.draw_circle(500, circle_y, 50, 1, CIRCLE_COLOR)
+			ren.draw_triangle(v1, v2, v3, 1, TRIANGLE_COLOR)
 			ren.draw_rect(
 				player_pos.x - player_size.x / 2,
 				player_pos.y - player_size.y / 2,
 				player_size.x,
 				player_size.y,
+				1,
 				PLAYER_COLOR,
 			)
 
