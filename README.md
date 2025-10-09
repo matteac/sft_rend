@@ -90,7 +90,12 @@ main :: proc() {
 - `fill_triangle(v1, v2, v3, color)`: Draws a filled triangle.
 ### Text Rendering (stb_truetype)
 - `init_font(path)`: Inits a font from a `.ttf` file for drawing text.
+- `init_font_from_data(data)`: Inits a font from a `[]u8` in memory.
 - `draw_text(text, x, y, size, color)`: Draws text using the previously initialized font.
+### Texture rendering
+- `load_texture(path)`: Loads a texture from an image. Uses `stb_image` to decode the image into a texture.
+- `load_texture_from_data(data)`: Loads a texture from a `[]u8` in memory. Uses `stb_image` to decode the bytes into a texture.
+- `draw_texture(x, y, texture)`: Draws a texture at its original scale.
 
 
 ## Input

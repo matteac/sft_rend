@@ -250,15 +250,15 @@ init_font :: proc(path: string) -> (bool, string) {
 
 	return init_font_from_data(font_data)
 }
-init_font_from_data :: proc(font_data: []u8) -> (bool, string) {
-	if font_data == nil {
+init_font_from_data :: proc(data: []u8) -> (bool, string) {
+	if data == nil {
 		return false, "Font data is nil"
 	}
 	if state._font_data != nil {
 		delete(state._font_data)
 	}
 
-	state._font_data = font_data
+	state._font_data = data
 
 	off := stbt.GetFontOffsetForIndex(&state._font_data[0], 0)
 	if !stbt.InitFont(&state._font_info, &state._font_data[0], off) {
