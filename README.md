@@ -131,6 +131,6 @@ odin build .
 
 
 # Credits
-- `VT323` by Peter Hull (peter.hull@oikoi.com)
-- `Cotham Sans` by Sebastien Sanfilippo (www.love-letters.be)
-- `Mushroom Sprite Pack` by Peter Field ([peterfield2006.itch.io](https://peterfield2006.itch.io))
+- `VT323` by [Peter Hull](https://github.com/phoikoi)
+- `Cotham Sans` by [Sebastien Sanfilippo](https://github.com/sebsan)
+- `Mushroom Sprite Pack` by [Peter Field](https://peterfield2006.itch.io)
