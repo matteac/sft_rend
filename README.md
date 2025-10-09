@@ -128,3 +128,9 @@ odin build .
 - Move error handling to [`Maybe(T)`](https://odin-lang.org/docs/overview/#maybet)
 <!-- - Alpha blending -->
 <!-- - Text drawing -->
+
+
+# Credits
+- Font VT323 [Peter Hull](peter.hull@oikoi.com)
+- Font Cotham Sans [Sebastien Sanfilippo](www.love-letters.be)
+- Mushroom Sprite Pack [Peter Field](peterfield2006.itch.io)
