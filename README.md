@@ -131,6 +131,6 @@ odin build .
 
 
 # Credits
-- Font VT323 [Peter Hull](peter.hull@oikoi.com)
-- Font Cotham Sans [Sebastien Sanfilippo](www.love-letters.be)
-- Mushroom Sprite Pack [Peter Field](peterfield2006.itch.io)
+- Font VT323 Peter Hull (peter.hull@oikoi.com)
+- Font Cotham Sans Sebastien Sanfilippo (www.love-letters.be)
+- Mushroom Sprite Pack Peter Field (https://peterfield2006.itch.io)
