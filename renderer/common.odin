@@ -7,6 +7,12 @@ Vec2f :: [2]f64
 Vec3f :: [3]f64
 
 
+Texture :: struct {
+	height: u32,
+	width:  u32,
+	data:   []u32,
+}
+
 Color :: struct {
 	r, g, b, a: u8,
 }

@@ -32,12 +32,22 @@ main :: proc() {
 	// https://odin-lang.org/docs/overview/#loadstring-path-or-loadstring-path-type
 	// font_data :: #load("assets/VT323-Regular.ttf")
 	// ok, err_str = ren.init_font_from_data(font_data) // bundle font in the executable with `#load`
-
 	ok, err_str = ren.init_font("assets/VT323-Regular.ttf")
 	if !ok {
 		fmt.eprintfln("Error initializing font: %s", err_str)
 		return
 	}
+
+	// tex_data :: #load("assets/Mushroom_Sprite_Pack/Dark_Red_Mushroom-1.png")
+	// mush_tex, tex_ok, tex_err := ren.load_texture_from_data(tex_data) // bundle texture in the executable with `#load`
+	mush_tex, tex_ok, tex_err := ren.load_texture(
+		"./assets/Mushroom_Sprite_Pack/Dark_Red_Mushroom-1.png",
+	)
+	if !tex_ok {
+		fmt.println(tex_err)
+		return
+	}
+
 
 	BACKGROUND_COLOR :: ren.Color{15, 15, 20, 255}
 	PLAYER_COLOR :: ren.Color{220, 70, 70, 255}
@@ -197,6 +207,12 @@ main :: proc() {
 			ren.fill_rect(particle.pos.x, particle.pos.y, 2, 2, {255, 220, 100, alpha})
 		}
 
+		ren.draw_texture(
+			screen_size.x - cast(f64)(mush_tex.width),
+			screen_size.y - cast(f64)(mush_tex.height),
+			mush_tex,
+		)
+
 		ren.draw_text("Demo", 20, 20, 28, TEXT_COLOR)
 		ren.draw_text("Use WASD to move the red rectangle", 20, 60, 24, TEXT_COLOR)
 		ren.draw_text("Hold Left Click to spawn particles", 20, 90, 24, TEXT_COLOR)
@@ -217,5 +233,7 @@ main :: proc() {
 		ren.draw_text(fps_text, screen_size.x - 150, 20, 24, TEXT_COLOR)
 
 		ren.present()
+
+		free_all(context.temp_allocator)
 	}
 }

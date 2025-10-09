@@ -3,6 +3,7 @@ package renderer
 
 import gl "vendor:OpenGL"
 import "vendor:glfw"
+import stbi "vendor:stb/image"
 import stbt "vendor:stb/truetype"
 
 import "core:fmt"
@@ -267,6 +268,53 @@ init_font_from_data :: proc(font_data: []u8) -> (bool, string) {
 	return true, ""
 }
 
+
+load_texture_from_data :: proc(data: []u8) -> (Texture, bool, string) {
+	tex: Texture
+
+	w, h, n: i32
+	pixels := stbi.load_from_memory(
+		raw_data(data),
+		cast(i32)len(data),
+		&w,
+		&h,
+		&n,
+		4, // rgba channels
+	)
+
+	if pixels == nil {
+		return tex, false, "Error decoding image"
+	}
+	defer stbi.image_free(pixels)
+
+	tex.width = cast(u32)w
+	tex.height = cast(u32)h
+	tex.data = make([]u32, w * h)
+	pixel_bytes := ([^]u8)(pixels)
+	for i in 0 ..< w * h {
+		color := Color {
+			r = pixel_bytes[i * 4 + 0],
+			g = pixel_bytes[i * 4 + 1],
+			b = pixel_bytes[i * 4 + 2],
+			a = pixel_bytes[i * 4 + 3],
+		}
+		tex.data[i] = transmute(u32)color
+	}
+
+	return tex, true, ""
+
+}
+load_texture :: proc(path: string) -> (Texture, bool, string) {
+	file_data, file_ok := os.read_entire_file(path, context.allocator)
+	if !file_ok {
+		return {}, false, fmt.tprintf("Error reading file: %s", path, context.allocator)
+	}
+	defer delete(file_data)
+
+	return load_texture_from_data(file_data)
+
+}
+
 /* 
 draw_pixel :: #force_inline proc(x, y: i32, color: Color) {
 	if x >= 0 && x < cast(i32)state.width && y >= 0 && y < cast(i32)state.height {
@@ -322,6 +370,43 @@ clear :: proc(color: Color) {
 	for i in 0 ..< len(state.fb) {
 		// background doesnt need alpha blending
 		state.fb[i] = transmute(u32)color
+	}
+}
+
+draw_texture :: proc(x, y: f64, tex: Texture) {
+	if x >= state.width ||
+	   y >= state.height ||
+	   x + cast(f64)tex.width <= 0 ||
+	   y + cast(f64)tex.height <= 0 {
+		return
+	}
+
+	min_screen_x := math.max(0, x)
+	max_screen_x := math.min(state.width, x + cast(f64)tex.width)
+	min_screen_y := math.max(0, y)
+	max_screen_y := math.min(state.height, y + cast(f64)tex.height)
+
+	start_tx: u32 = 0
+	if x < 0 {
+		start_tx = cast(u32)(-x)
+	}
+
+	start_ty: u32 = 0
+	if y < 0 {
+		start_ty = cast(u32)(-y)
+	}
+
+	ty := start_ty
+	for py in cast(u32)min_screen_y ..< cast(u32)max_screen_y {
+		tx := start_tx
+		for px in cast(u32)min_screen_x ..< cast(u32)max_screen_x {
+			tex_index := ty * tex.width + tx
+			tex_color := transmute(Color)tex.data[tex_index]
+			draw_pixel(px, py, tex_color)
+
+			tx += 1
+		}
+		ty += 1
 	}
 }
 
