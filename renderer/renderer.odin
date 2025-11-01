@@ -720,3 +720,22 @@ get_delta_time :: proc() -> f64 {
 is_running :: proc() -> bool {
 	return state._running && !glfw.WindowShouldClose(state._window_handle)
 }
+
+measure_text :: proc(text: string, font_size: f64) -> f64 {
+	font := &state._font_info
+	scale := cast(f64)stbt.ScaleForPixelHeight(font, cast(f32)font_size)
+	total: f64 = 0
+	prev: rune = 0
+
+	for r in text {
+		if prev != 0 {
+			total += cast(f64)stbt.GetCodepointKernAdvance(font, prev, r) * scale
+		}
+		advance, lsb: i32
+		stbt.GetCodepointHMetrics(font, r, &advance, &lsb)
+		total += cast(f64)(advance) * scale
+
+		prev = r
+	}
+	return total
+}
